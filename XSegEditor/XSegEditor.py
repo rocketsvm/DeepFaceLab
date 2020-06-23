@@ -1369,6 +1369,7 @@ class MainWindow(QXMainWindow):
         self.canvas.op.initialize ( img,  ie_polys=ie_polys, xseg_mask=xseg_mask, landmarks=landmarks )
 
         self.filename_label.setText(f"{image_path.name}")
+        self.current_progress_label.setText(f"{len(self.image_paths)} {QStringDB.remaining}")
 
         return True
 
@@ -1488,11 +1489,12 @@ class MainWindow(QXMainWindow):
         self.filename_label = QLabel()
         self.filename_label.setFont(label_font)
 
+        self.current_progress_label = QLabel()
         self.has_ie_polys_count_label = QLabel()
 
         status_frame_l = QHBoxLayout()
         status_frame_l.setContentsMargins(0,0,0,0)
-        status_frame_l.addWidget ( QLabel(), alignment=Qt.AlignCenter)
+        status_frame_l.addWidget (self.current_progress_label, alignment=Qt.AlignCenter)
         status_frame_l.addWidget (self.filename_label, alignment=Qt.AlignCenter)
         status_frame_l.addWidget (self.has_ie_polys_count_label, alignment=Qt.AlignCenter)
         status_frame = QFrame()

@@ -98,4 +98,8 @@ class QStringDB():
                                  'ru' : 'размечено',
                                  'zh' : '标记的',
                                 }[lang]   
-                                           
+
+        QStringDB.remaining = {'en' : 'remaining',
+                               'ru' : 'осталось',
+                              }[lang]   
+                                                                                 
