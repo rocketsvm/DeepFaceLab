@@ -807,7 +807,13 @@ class QCanvasOperator(QWidget):
             return
         key = ev.key()
         key_mods = int(ev.modifiers())
-        if self.op_mode == OpMode.DRAW_PTS:
+        if self.op_mode == OpMode.EDIT_LANDMARKS and key_mods == Qt.ControlModifier:
+            if key == 0x43: # 'C'
+                self.copied_landmarks = self.landmarks.copy()
+            elif key == 0x56 and self.copied_landmarks is not None: # 'V'
+                self.landmarks = self.copied_landmarks.copy()
+                self.update()
+        elif self.op_mode == OpMode.DRAW_PTS:
             self.set_view_lock(ViewLock.CENTER if key_mods == Qt.ShiftModifier else ViewLock.NONE )
         elif self.op_mode == OpMode.EDIT_PTS:
             self.set_pt_edit_mode(PTEditMode.ADD_DEL if key_mods == Qt.ControlModifier else PTEditMode.MOVE )
