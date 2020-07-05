@@ -127,6 +127,30 @@ def sort_by_face_yaw(input_path):
 
     return img_list, trash_img_list
 
+def sort_by_mouth(input_path):
+    io.log_info ("Sorting by mouth openness...")
+    img_list = []
+    trash_img_list = []
+    for filepath in io.progress_bar_generator( pathex.get_image_paths(input_path), "Loading"):
+        filepath = Path(filepath)
+
+        dflimg = DFLIMG.load (filepath)
+
+        if dflimg is None or not dflimg.has_data():
+            io.log_err (f"{filepath.name} is not a dfl image file")
+            trash_img_list.append ( [str(filepath)] )
+            continue
+
+        landmarks = dflimg.get_landmarks()
+        distance = landmarks[67][1] - landmarks[63][1]
+
+        img_list.append( [str(filepath), distance ] )
+
+    io.log_info ("Sorting...")
+    img_list = sorted(img_list, key=operator.itemgetter(1), reverse=True)
+
+    return img_list, trash_img_list
+
 def sort_by_face_pitch(input_path):
     io.log_info ("Sorting by face pitch...")
     img_list = []
@@ -889,6 +913,7 @@ sort_func_methods = {
     'absdiff':     ("absolute pixel difference", sort_by_absdiff),
     'final':       ("best faces", sort_best),
     'final-fast':  ("best faces faster", sort_best_faster),
+    'mouth':       ("mouth openness", sort_by_mouth),
 }
 
 def main (input_path, sort_by_method=None):
