@@ -151,7 +151,9 @@ class ExtractSubprocessor(Subprocessor):
                     if len(rects) != 0:
                         data.rects_rotation = rot
                         break
-                if max_faces_from_image is not None and len(data.rects) > 1:
+                if max_faces_from_image is not None and \
+                   max_faces_from_image > 0 and \
+                   len(data.rects) > 0:
                     data.rects = data.rects[0:max_faces_from_image]
             return data
 
@@ -372,6 +374,9 @@ class ExtractSubprocessor(Subprocessor):
             self.rect_locked = False
             self.extract_needed = True
 
+            self.image = None
+            self.image_filepath = None
+
         io.progress_bar (None, len (self.input_data))
 
     #override
@@ -409,21 +414,8 @@ class ExtractSubprocessor(Subprocessor):
                 filepath, data_rects, data_landmarks = data.filepath, data.rects, data.landmarks
                 is_frame_done = False
 
-                if need_remark_face: # need remark image from input data that already has a marked face?
-                    need_remark_face = False
-                    if len(data_rects) != 0: # If there was already a face then lock the rectangle to it until the mouse is clicked
-                        self.rect = data_rects.pop()
-                        self.landmarks = data_landmarks.pop()
-                        data_rects.clear()
-                        data_landmarks.clear()
-
-                        self.rect_locked = True
-                        self.rect_size = ( self.rect[2] - self.rect[0] ) / 2
-                        self.x = ( self.rect[0] + self.rect[2] ) / 2
-                        self.y = ( self.rect[1] + self.rect[3] ) / 2
-                        self.redraw()
-
-                if len(data_rects) == 0:
+                if self.image_filepath != filepath:
+                    self.image_filepath = filepath
                     if self.cache_original_image[0] == filepath:
                         self.original_image = self.cache_original_image[1]
                     else:
@@ -457,6 +449,22 @@ class ExtractSubprocessor(Subprocessor):
 
                         self.cache_text_lines_img = (sh, self.text_lines_img)
 
+                if need_remark_face: # need remark image from input data that already has a marked face?
+                    need_remark_face = False
+                    if len(data_rects) != 0: # If there was already a face then lock the rectangle to it until the mouse is clicked
+                        self.rect = data_rects.pop()
+                        self.landmarks = data_landmarks.pop()
+                        data_rects.clear()
+                        data_landmarks.clear()
+
+                        self.rect_locked = True
+                        self.rect_size = ( self.rect[2] - self.rect[0] ) / 2
+                        self.x = ( self.rect[0] + self.rect[2] ) / 2
+                        self.y = ( self.rect[1] + self.rect[3] ) / 2
+                        self.redraw()
+
+                if len(data_rects) == 0:
+                    (h,w,c) = self.image.shape
                     while True:
                         io.process_messages(0.0001)
 
@@ -755,11 +763,16 @@ def main(detector=None,
                 if dflimg is not None and dflimg.has_data():
                      face_type = FaceType.fromString ( dflimg.get_face_type() )
 
-    input_image_paths = pathex.get_image_unique_filestem_paths(input_path, verbose_print_func=io.log_info)    
+    input_image_paths = pathex.get_image_unique_filestem_paths(input_path, verbose_print_func=io.log_info)
     output_images_paths = pathex.get_image_paths(output_path)
-    
-    if not manual_output_debug_fix and len(output_images_paths) > 0:        
-        if len(output_images_paths) > 128 and io.input_bool ("Continue extraction?", True, help_message="Extraction can be continued, but you must specify the same options again."):
+    output_debug_path = output_path.parent / (output_path.name + '_debug')
+
+    continue_extraction = False
+    if not manual_output_debug_fix and len(output_images_paths) > 0:
+        if len(output_images_paths) > 128:
+            continue_extraction = io.input_bool ("Continue extraction?", True, help_message="Extraction can be continued, but you must specify the same options again.")
+
+        if len(output_images_paths) > 128 and continue_extraction:
             try:
                 input_image_paths = input_image_paths[ [ Path(x).stem for x in input_image_paths ].index ( Path(output_images_paths[-128]).stem.split('_')[0] ) : ]
             except:
@@ -794,10 +807,12 @@ def main(detector=None,
         io.log_info ("[1] manual")
         detector = {0:'s3fd', 1:'manual'}[ io.input_int("", 0, [0,1]) ]
 
-    output_debug_path = output_path.parent / (output_path.name + '_debug')
 
     if output_debug is None:
         output_debug = io.input_bool (f"Write debug images to {output_debug_path.name}?", False)
+
+    if output_debug:
+        output_debug_path.mkdir(parents=True, exist_ok=True)
 
     if manual_output_debug_fix:
         if not output_debug_path.exists():
@@ -811,11 +826,9 @@ def main(detector=None,
             input_image_paths = sorted (input_image_paths)
             io.log_info('Found %d images.' % (len(input_image_paths)))
     else:
-        if output_debug_path.exists():
+        if not continue_extraction and output_debug_path.exists():
             for filename in pathex.get_image_paths(output_debug_path):
                 Path(filename).unlink()
-        else:
-            output_debug_path.mkdir(parents=True, exist_ok=True)
 
     images_found = len(input_image_paths)
     faces_detected = 0
