@@ -1,3 +1,4 @@
+import math
 import multiprocessing
 import time
 import traceback
@@ -26,6 +27,7 @@ class SampleGeneratorFace(SampleGeneratorBase):
                         sample_process_options=SampleProcessor.Options(),
                         output_sample_types=[],
                         uniform_yaw_distribution=False,
+                        uniform_pitch_distribution=False,
                         generators_count=4,
                         raise_on_no_data=True,                        
                         **kwargs):
@@ -49,31 +51,50 @@ class SampleGeneratorFace(SampleGeneratorBase):
             else:
                 return
                 
-        if uniform_yaw_distribution:
+        if uniform_yaw_distribution or uniform_pitch_distribution:
             samples_pyr = [ ( idx, sample.get_pitch_yaw_roll() ) for idx, sample in enumerate(samples) ]
             
             grads = 128
-            #instead of math.pi / 2, using -1.2,+1.2 because actually maximum yaw for 2DFAN landmarks are -1.2+1.2
-            grads_space = np.linspace (-1.2, 1.2,grads)
-
             yaws_sample_list = [None]*grads
-            for g in io.progress_bar_generator ( range(grads), "Sort by yaw"):
-                yaw = grads_space[g]
-                next_yaw = grads_space[g+1] if g < grads-1 else yaw
+            pitches_sample_list = [None]*grads
 
-                yaw_samples = []
-                for idx, pyr in samples_pyr:
-                    s_yaw = -pyr[1]
-                    if (g == 0          and s_yaw < next_yaw) or \
-                    (g < grads-1     and s_yaw >= yaw and s_yaw < next_yaw) or \
-                    (g == grads-1    and s_yaw >= yaw):
-                        yaw_samples += [ idx ]
-                if len(yaw_samples) > 0:
-                    yaws_sample_list[g] = yaw_samples
+            if uniform_yaw_distribution:
+                #instead of math.pi / 2, using -1.2,+1.2 because actually maximum yaw for 2DFAN landmarks are -1.2+1.2
+                grads_space = np.linspace (-1.2, 1.2,grads)
+                for g in io.progress_bar_generator ( range(grads), "Sort by yaw"):
+                    yaw = grads_space[g]
+                    next_yaw = grads_space[g+1] if g < grads-1 else yaw
+
+                    yaw_samples = []
+                    for idx, pyr in samples_pyr:
+                        s_yaw = -pyr[1]
+                        if (g == 0          and s_yaw < next_yaw) or \
+                        (g < grads-1     and s_yaw >= yaw and s_yaw < next_yaw) or \
+                        (g == grads-1    and s_yaw >= yaw):
+                            yaw_samples += [ idx ]
+                    if len(yaw_samples) > 0:
+                        yaws_sample_list[g] = yaw_samples
+                
+            if uniform_pitch_distribution:
+                grads_space = np.linspace (-math.pi / 2,math.pi / 2, grads )
+                for g in io.progress_bar_generator ( range(grads), "Sort by pitch"):
+                    pitch = grads_space[g]
+                    next_pitch = grads_space[g+1] if g < grads-1 else pitch
+
+                    pitch_samples = []
+                    for idx, pyr in samples_pyr:
+                        s_pitch = -pyr[0]
+                        if (g == 0          and s_pitch < next_pitch) or \
+                        (g < grads-1     and s_pitch >= pitch and s_pitch < next_pitch) or \
+                        (g == grads-1    and s_pitch >= pitch):
+                            pitch_samples += [ idx ]
+                    if len(pitch_samples) > 0:
+                        pitches_sample_list[g] = pitch_samples  # TODO: do not include duplicates from yaws_sample_list
+
+            selected_sample_list = yaws_sample_list + pitches_sample_list
+            selected_sample_list = [ s for s in selected_sample_list if s is not None ]
+            index_host = mplib.Index2DHost( selected_sample_list )
             
-            yaws_sample_list = [ y for y in yaws_sample_list if y is not None ]
-            
-            index_host = mplib.Index2DHost( yaws_sample_list )
         else:
             index_host = mplib.IndexHost(self.samples_len)
 
