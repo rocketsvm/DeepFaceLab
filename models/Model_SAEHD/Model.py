@@ -43,7 +43,12 @@ class SAEHDModel(ModelBase):
         default_d_dims             = self.options['d_dims']             = self.options.get('d_dims', None)
         default_d_mask_dims        = self.options['d_mask_dims']        = self.options.get('d_mask_dims', None)
         default_masked_training    = self.options['masked_training']    = self.load_or_def_option('masked_training', True)
-        default_eyes_prio          = self.options['eyes_prio']          = self.load_or_def_option('eyes_prio', False)
+
+        eyes_prio = self.load_or_def_option('eyes_prio', None)
+        feature_prio = self.load_or_def_option('feature_prio', 'n')
+        feature_prio = {True: 'eyes', False: 'n'}.get(eyes_prio, feature_prio)  # backward comp
+        default_feature_prio = self.options['feature_prio'] = feature_prio
+
         default_uniform_yaw        = self.options['uniform_yaw']        = self.load_or_def_option('uniform_yaw', False)
         default_uniform_pitch      = self.options['uniform_pitch']      = self.load_or_def_option('uniform_pitch', False)
 
@@ -130,7 +135,7 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
             if self.options['face_type'] == 'wf' or self.options['face_type'] == 'head':
                 self.options['masked_training']  = io.input_bool ("Masked training", default_masked_training, help_message="This option is available only for 'whole_face' or 'head' type. Masked training clips training area to full_face mask or XSeg mask, thus network will train the faces properly.")
 
-            self.options['eyes_prio'] = io.input_bool ("Eyes priority", default_eyes_prio, help_message='Helps to fix eye problems during training like "alien eyes" and wrong eyes direction ( especially on HD architectures ) by forcing the neural network to train eyes with higher priority. before/after https://i.imgur.com/YQHOuSR.jpg ')
+            self.options['feature_prio'] = io.input_str ("Face feature priority", default_feature_prio, ['n', 'eyes', 'mouth'], help_message='Helps to fix problems with individual facial features ( especially on HD architectures ) by forcing the neural network to train them with higher priority. For this to work, make sure both facesets are properly aligned.\nn - disabled.\neyes - Helps to fix eye problems like "alien eyes" and wrong eyes direction. Before/after https://i.imgur.com/YQHOuSR.jpg\nmouth - Focus on mouth. Experimental. Should help with mouth pose and teeth details.')
             self.options['uniform_yaw'] = io.input_bool ("Uniform yaw distribution of samples", default_uniform_yaw, help_message='Helps to fix blurry side faces due to small amount of them in the faceset.')
             self.options['uniform_pitch'] = io.input_bool ("Uniform pitch distribution of samples", default_uniform_yaw, help_message='Helps to fix blurry faces looking up or down due to small amount of them in the faceset.')
 
@@ -176,7 +181,7 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
                           'wf' : FaceType.WHOLE_FACE,
                           'head' : FaceType.HEAD}[ self.options['face_type'] ]
 
-        eyes_prio = self.options['eyes_prio']
+        feature_prio = self.options['feature_prio']
 
         archi_split = self.options['archi'].split('-')
 
@@ -358,8 +363,8 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
                     # unpack masks from one combined mask
                     gpu_target_srcm      = tf.clip_by_value (gpu_target_srcm_all, 0, 1)
                     gpu_target_dstm      = tf.clip_by_value (gpu_target_dstm_all, 0, 1)
-                    gpu_target_srcm_eyes = tf.clip_by_value (gpu_target_srcm_all-1, 0, 1)
-                    gpu_target_dstm_eyes = tf.clip_by_value (gpu_target_dstm_all-1, 0, 1)
+                    gpu_target_srcm_prio = tf.clip_by_value (gpu_target_srcm_all-1, 0, 1)
+                    gpu_target_dstm_prio = tf.clip_by_value (gpu_target_dstm_all-1, 0, 1)
 
                     gpu_target_srcm_blur = nn.gaussian_blur(gpu_target_srcm,  max(1, resolution // 32) )
                     gpu_target_dstm_blur = nn.gaussian_blur(gpu_target_dstm,  max(1, resolution // 32) )
@@ -383,8 +388,8 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
                         gpu_src_loss += tf.reduce_mean ( 5*nn.dssim(gpu_target_src_masked_opt, gpu_pred_src_src_masked_opt, max_val=1.0, filter_size=int(resolution/23.2)), axis=[1])
                     gpu_src_loss += tf.reduce_mean ( 10*tf.square ( gpu_target_src_masked_opt - gpu_pred_src_src_masked_opt ), axis=[1,2,3])
 
-                    if eyes_prio:
-                        gpu_src_loss += tf.reduce_mean ( 300*tf.abs ( gpu_target_src*gpu_target_srcm_eyes - gpu_pred_src_src*gpu_target_srcm_eyes ), axis=[1,2,3])
+                    if feature_prio != 'n':
+                        gpu_src_loss += tf.reduce_mean ( 300*tf.abs ( gpu_target_src*gpu_target_srcm_prio - gpu_pred_src_src*gpu_target_srcm_prio ), axis=[1,2,3])
 
                     gpu_src_loss += tf.reduce_mean ( 10*tf.square( gpu_target_srcm - gpu_pred_src_srcm ),axis=[1,2,3] )
 
@@ -405,8 +410,8 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
                     gpu_dst_loss += tf.reduce_mean ( 10*tf.square(  gpu_target_dst_masked_opt- gpu_pred_dst_dst_masked_opt ), axis=[1,2,3])
 
 
-                    if eyes_prio:
-                        gpu_dst_loss += tf.reduce_mean ( 300*tf.abs ( gpu_target_dst*gpu_target_dstm_eyes - gpu_pred_dst_dst*gpu_target_dstm_eyes ), axis=[1,2,3])
+                    if feature_prio != 'n':
+                        gpu_dst_loss += tf.reduce_mean ( 300*tf.abs ( gpu_target_dst*gpu_target_dstm_prio - gpu_pred_dst_dst*gpu_target_dstm_prio ), axis=[1,2,3])
 
                     gpu_dst_loss += tf.reduce_mean ( 10*tf.square( gpu_target_dstm - gpu_pred_dst_dstm ),axis=[1,2,3] )
 
@@ -570,12 +575,16 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
             if ct_mode is not None:
                 src_generators_count = int(src_generators_count * 1.5)
 
+            if feature_prio == 'mouth':
+                mask_type = SampleProcessor.FaceMaskType.FULL_FACE_MOUTH
+            else:
+                mask_type = SampleProcessor.FaceMaskType.FULL_FACE_EYES
             self.set_training_data_generators ([
                     SampleGeneratorFace(training_data_src_path, random_ct_samples_path=random_ct_samples_path, debug=self.is_debug(), batch_size=self.get_batch_size(),
                         sample_process_options=SampleProcessor.Options(random_flip=self.random_flip),
                         output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':self.options['random_warp'], 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR, 'ct_mode': ct_mode,                                           'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR, 'ct_mode': ct_mode,                                           'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
-                                                {'sample_type': SampleProcessor.SampleType.FACE_MASK, 'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.G,   'face_mask_type' : SampleProcessor.FaceMaskType.FULL_FACE_EYES, 'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
+                                                {'sample_type': SampleProcessor.SampleType.FACE_MASK, 'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.G,   'face_mask_type' : mask_type, 'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                               ],
                         uniform_yaw_distribution=self.options['uniform_yaw'] or self.pretrain,
                         uniform_pitch_distribution=self.options['uniform_pitch'] or self.pretrain,
@@ -585,7 +594,7 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
                         sample_process_options=SampleProcessor.Options(random_flip=self.random_flip),
                         output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':self.options['random_warp'], 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR,                                                                'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR,                                                                'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
-                                                {'sample_type': SampleProcessor.SampleType.FACE_MASK, 'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.G,   'face_mask_type' : SampleProcessor.FaceMaskType.FULL_FACE_EYES, 'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
+                                                {'sample_type': SampleProcessor.SampleType.FACE_MASK, 'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.G,   'face_mask_type' : mask_type, 'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                               ],
                         uniform_yaw_distribution=self.options['uniform_yaw'] or self.pretrain,
                         uniform_pitch_distribution=self.options['uniform_pitch'] or self.pretrain,
