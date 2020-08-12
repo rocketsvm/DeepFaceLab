@@ -210,6 +210,7 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
             self.options_show_override['face_style_power'] = 0.0
             self.options_show_override['bg_style_power'] = 0.0
             self.options_show_override['uniform_yaw'] = True
+            self.options_show_override['uniform_pitch'] = True
 
         masked_training = self.options['masked_training']
         ct_mode = self.options['ct_mode']
