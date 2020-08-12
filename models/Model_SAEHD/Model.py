@@ -200,7 +200,16 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
         if self.pretrain_just_disabled:
             self.set_iter(0)
 
-        self.gan_power = gan_power = self.options['gan_power'] if not self.pretrain else 0.0
+        self.gan_power = gan_power = 0.0 if self.pretrain else self.options['gan_power']
+        random_warp = False if self.pretrain else self.options['random_warp']
+
+        if self.pretrain:
+            self.options_show_override['gan_power'] = 0.0
+            self.options_show_override['random_warp'] = False
+            self.options_show_override['lr_dropout'] = 'n'
+            self.options_show_override['face_style_power'] = 0.0
+            self.options_show_override['bg_style_power'] = 0.0
+            self.options_show_override['uniform_yaw'] = True
 
         masked_training = self.options['masked_training']
         ct_mode = self.options['ct_mode']
@@ -590,7 +599,7 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
             self.set_training_data_generators ([
                     SampleGeneratorFace(training_data_src_path, random_ct_samples_path=random_ct_samples_path, debug=self.is_debug(), batch_size=self.get_batch_size(),
                         sample_process_options=SampleProcessor.Options(random_flip=self.random_flip),
-                        output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':self.options['random_warp'], 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR, 'ct_mode': ct_mode,                                           'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
+                        output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':random_warp, 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR, 'ct_mode': ct_mode,                                           'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR, 'ct_mode': ct_mode,                                           'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_MASK, 'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.G,   'face_mask_type' : mask_type, 'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                               ],
@@ -600,7 +609,7 @@ Examples: df, liae, df-d, df-ud, liae-ud, ...
 
                     SampleGeneratorFace(training_data_dst_path, debug=self.is_debug(), batch_size=self.get_batch_size(),
                         sample_process_options=SampleProcessor.Options(random_flip=self.random_flip),
-                        output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':self.options['random_warp'], 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR,                                                                'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
+                        output_sample_types = [ {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':random_warp, 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR,                                                                'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_IMAGE,'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.BGR,                                                                'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                                 {'sample_type': SampleProcessor.SampleType.FACE_MASK, 'warp':False                      , 'transform':True, 'channel_type' : SampleProcessor.ChannelType.G,   'face_mask_type' : mask_type, 'face_type':self.face_type, 'data_format':nn.data_format, 'resolution': resolution},
                                               ],
