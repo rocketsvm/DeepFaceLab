@@ -70,7 +70,7 @@ if __name__ == "__main__":
 
     p = subparsers.add_parser( "sort", help="Sort faces in a directory.")
     p.add_argument('--input-dir', required=True, action=fixPathAction, dest="input_dir", help="Input directory. A directory containing the files you wish to process.")
-    p.add_argument('--by', dest="sort_by_method", default=None, choices=("blur", "face-yaw", "face-pitch", "face-source-rect-size", "hist", "hist-dissim", "brightness", "hue", "black", "origname", "oneface", "final", "final-faster", "absdiff"), help="Method of sorting. 'origname' sort by original filename to recover original sequence." )
+    p.add_argument('--by', dest="sort_by_method", default=None, choices=("blur", "face-yaw", "face-pitch", "face-source-rect-size", "hist", "hist-dissim", "brightness", "hue", "black", "origname", "oneface", "final", "final-faster", "absdiff", "mouth"), help="Method of sorting. 'origname' sort by original filename to recover original sequence." )
     p.set_defaults (func=process_sort)
 
     def process_util(arguments):
@@ -118,6 +118,7 @@ if __name__ == "__main__":
                   'saved_models_path'        : Path(arguments.model_dir),
                   'training_data_src_path'   : Path(arguments.training_data_src_dir),
                   'training_data_dst_path'   : Path(arguments.training_data_dst_dir),
+                  'training_data_prelabeled_path'   : Path(arguments.training_data_prelabeled_dir) if arguments.training_data_prelabeled_dir is not None else None,
                   'pretraining_data_path'    : Path(arguments.pretraining_data_dir) if arguments.pretraining_data_dir is not None else None,
                   'pretrained_model_path'    : Path(arguments.pretrained_model_dir) if arguments.pretrained_model_dir is not None else None,
                   'no_preview'               : arguments.no_preview,
@@ -134,6 +135,7 @@ if __name__ == "__main__":
     p = subparsers.add_parser( "train", help="Trainer")
     p.add_argument('--training-data-src-dir', required=True, action=fixPathAction, dest="training_data_src_dir", help="Dir of extracted SRC faceset.")
     p.add_argument('--training-data-dst-dir', required=True, action=fixPathAction, dest="training_data_dst_dir", help="Dir of extracted DST faceset.")
+    p.add_argument('--training-data-prelabeled-dir', action=fixPathAction, dest="training_data_prelabeled_dir", default=None, help="Dir of XSeg-prelabeled faceset.")
     p.add_argument('--pretraining-data-dir', action=fixPathAction, dest="pretraining_data_dir", default=None, help="Optional dir of extracted faceset that will be used in pretraining mode.")
     p.add_argument('--pretrained-model-dir', action=fixPathAction, dest="pretrained_model_dir", default=None, help="Optional dir of pretrain model files. (Currently only for Quick96).")
     p.add_argument('--model-dir', required=True, action=fixPathAction, dest="model_dir", help="Saved models dir.")
@@ -261,6 +263,21 @@ if __name__ == "__main__":
     p = subparsers.add_parser( "dev_test", help="")
     p.add_argument('--input-dir', required=True, action=fixPathAction, dest="input_dir")
     p.set_defaults (func=process_dev_test)
+    
+    # ========== extractor
+    extractor_parser = subparsers.add_parser( "extractor", help="extractor.").add_subparsers()
+    
+    p = extractor_parser.add_parser( "extract", help="extract.")
+
+    def process_extractor(arguments):
+        osex.set_process_lowest_prio()
+        from extractor import extractor
+        global exit_code
+        exit_code = extractor.start (Path(arguments.input_dir))
+        
+    p.add_argument('--input-dir', required=True, action=fixPathAction, dest="input_dir")
+
+    p.set_defaults (func=process_extractor)
     
     # ========== XSeg
     xseg_parser = subparsers.add_parser( "xseg", help="XSeg tools.").add_subparsers()

@@ -124,7 +124,7 @@ class XSegModel(ModelBase):
             dst_generators_count = cpu_count // 2
             
             
-            srcdst_generator = SampleGeneratorFaceXSeg([self.training_data_src_path, self.training_data_dst_path],
+            srcdst_generator = SampleGeneratorFaceXSeg([self.training_data_src_path, self.training_data_dst_path, self.training_data_prelabeled_path],
                                                         debug=self.is_debug(),
                                                         batch_size=self.get_batch_size(),
                                                         resolution=resolution,

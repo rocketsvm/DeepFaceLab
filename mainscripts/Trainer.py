@@ -17,6 +17,7 @@ def trainerThread (s2c, c2s, e,
                     saved_models_path = None,
                     training_data_src_path = None,
                     training_data_dst_path = None,
+                    training_data_prelabeled_path = None,
                     pretraining_data_path = None,
                     pretrained_model_path = None,
                     no_preview=False,
@@ -38,6 +39,10 @@ def trainerThread (s2c, c2s, e,
 
             if not training_data_dst_path.exists():
                 training_data_dst_path.mkdir(exist_ok=True, parents=True)
+                
+            if training_data_prelabeled_path is not None:
+                if not training_data_prelabeled_path.exists():
+                    training_data_prelabeled_path.mkdir(exist_ok=True, parents=True)
 
             if not saved_models_path.exists():
                 saved_models_path.mkdir(exist_ok=True, parents=True)
@@ -47,6 +52,7 @@ def trainerThread (s2c, c2s, e,
                         saved_models_path=saved_models_path,
                         training_data_src_path=training_data_src_path,
                         training_data_dst_path=training_data_dst_path,
+                        training_data_prelabeled_path=training_data_prelabeled_path,
                         pretraining_data_path=pretraining_data_path,
                         pretrained_model_path=pretrained_model_path,
                         no_preview=no_preview,

@@ -23,7 +23,7 @@ class SampleGeneratorFaceXSeg(SampleGeneratorBase):
         super().__init__(debug, batch_size)
         self.initialized = False
 
-        samples = sum([ SampleLoader.load (SampleType.FACE, path) for path in paths ]  )
+        samples = sum([ SampleLoader.load (SampleType.FACE, path) for path in paths if path is not None]  )
         seg_sample_idxs = SegmentedSampleFilterSubprocessor(samples).run()
 
         seg_samples_len = len(seg_sample_idxs)
