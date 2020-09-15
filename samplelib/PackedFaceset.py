@@ -85,16 +85,16 @@ class PackedFaceset():
         of.seek(0,2)
         of.close()
 
-        for filename in io.progress_bar_generator(image_paths, "Deleting files"):
-            Path(filename).unlink()
+        # for filename in io.progress_bar_generator(image_paths, "Deleting files"):
+            # Path(filename).unlink()
 
-        if as_person_faceset:
-            for dir_name in io.progress_bar_generator(dir_names, "Deleting dirs"):
-                dir_path = samples_path / dir_name
-                try:
-                    shutil.rmtree(dir_path)
-                except:
-                    io.log_info (f"unable to remove: {dir_path} ")
+        # if as_person_faceset:
+            # for dir_name in io.progress_bar_generator(dir_names, "Deleting dirs"):
+                # dir_path = samples_path / dir_name
+                # try:
+                    # shutil.rmtree(dir_path)
+                # except:
+                    # io.log_info (f"unable to remove: {dir_path} ")
 
     @staticmethod
     def unpack(samples_path):
