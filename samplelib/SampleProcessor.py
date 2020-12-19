@@ -59,15 +59,15 @@ class SampleProcessor(object):
             ct_sample_bgr = None
             h,w,c = sample_bgr.shape
             
-            def get_full_face_mask():   
-                xseg_mask = sample.get_xseg_mask()                                     
+            def get_full_face_mask(smpl):   
+                xseg_mask = smpl.get_xseg_mask()                                     
                 if xseg_mask is not None:           
                     if xseg_mask.shape[0] != h or xseg_mask.shape[1] != w:
                         xseg_mask = cv2.resize(xseg_mask, (w,h), interpolation=cv2.INTER_CUBIC)                    
                         xseg_mask = imagelib.normalize_channels(xseg_mask, 1)
                     return np.clip(xseg_mask, 0, 1)
                 else:
-                    full_face_mask = LandmarksProcessor.get_image_hull_mask (sample_bgr.shape, sample_landmarks, eyebrows_expand_mod=sample.eyebrows_expand_mod )
+                    full_face_mask = LandmarksProcessor.get_image_hull_mask (sample_bgr.shape, sample_landmarks, eyebrows_expand_mod=smpl.eyebrows_expand_mod )
                     return np.clip(full_face_mask, 0, 1)
                 
             def get_eyes_mask():
@@ -138,16 +138,16 @@ class SampleProcessor(object):
 
                     if sample_type == SPST.FACE_MASK: 
                         if face_mask_type == SPFMT.FULL_FACE:
-                            img = get_full_face_mask()
+                            img = get_full_face_mask(sample)
                         elif face_mask_type == SPFMT.EYES:
                             img = get_eyes_mask()
                         elif face_mask_type == SPFMT.MOUTH:
                             img = get_mouth_mask()
                         elif face_mask_type == SPFMT.FULL_FACE_EYES:
-                            img = get_full_face_mask()                            
+                            img = get_full_face_mask(sample)                            
                             img += get_eyes_mask()*img
                         elif face_mask_type == SPFMT.FULL_FACE_MOUTH:
-                            img = get_full_face_mask()
+                            img = get_full_face_mask(sample)
                             img += get_mouth_mask()*img
                         else:
                             img = np.zeros ( sample_bgr.shape[0:2]+(1,), dtype=np.float32)
@@ -199,7 +199,16 @@ class SampleProcessor(object):
                         if ct_mode is not None and ct_sample is not None:
                             if ct_sample_bgr is None:
                                ct_sample_bgr = ct_sample.load_bgr()
-                            img = imagelib.color_transfer (ct_mode, img, cv2.resize( ct_sample_bgr, (resolution,resolution), interpolation=cv2.INTER_LINEAR ) )
+                            # img = imagelib.color_transfer (ct_mode, img, cv2.resize( ct_sample_bgr, (resolution,resolution), interpolation=cv2.INTER_LINEAR ) )
+                                                        
+                            trg_mask = get_full_face_mask(sample)
+                            trg_mask = cv2.resize(trg_mask, (resolution,resolution), interpolation=cv2.INTER_CUBIC)
+                            trg_mask = imagelib.normalize_channels(trg_mask, 1)
+                            src_mask = get_full_face_mask(ct_sample)
+                            src_mask = cv2.resize(src_mask, (resolution,resolution), interpolation=cv2.INTER_CUBIC)
+                            src_mask = imagelib.normalize_channels(src_mask, 1)
+                            img = imagelib.color_transfer (ct_mode, img, cv2.resize( ct_sample_bgr, (resolution,resolution), interpolation=cv2.INTER_LINEAR ), source_mask = src_mask, target_mask = trg_mask )
+                            
 
                         
                         img  = imagelib.warp_by_params (params_per_resolution[resolution], img,  warp, transform, can_flip=True, border_replicate=border_replicate)
