@@ -142,7 +142,7 @@ class SampleProcessor(object):
                         elif face_mask_type == SPFMT.EYES:
                             img = get_eyes_mask()
                         elif face_mask_type == SPFMT.EYES_MOUTH:
-                            mask = get_full_face_mask().copy()
+                            mask = get_full_face_mask(sample).copy()
                             mask[mask != 0.0] = 1.0                            
                             img = get_eyes_mouth_mask()*mask
                         else:
