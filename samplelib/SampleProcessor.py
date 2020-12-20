@@ -32,8 +32,6 @@ class SampleProcessor(object):
         FULL_FACE      = 1  #mask all hull as grayscale
         EYES     = 2  #mask eyes hull as grayscale
         FULL_FACE_EYES = 3  #combo all + eyes as grayscale
-        MOUTH = 4  #combo all + mouth as grayscale
-        FULL_FACE_MOUTH = 5  #combo all + mouth as grayscale
 
     class Options(object):
         def __init__(self, random_flip = True, rotation_range=[-10,10], scale_range=[-0.05, 0.05], tx_range=[-0.05, 0.05], ty_range=[-0.05, 0.05] ):
@@ -73,10 +71,6 @@ class SampleProcessor(object):
             def get_eyes_mask():
                 eyes_mask = LandmarksProcessor.get_image_eye_mask (sample_bgr.shape, sample_landmarks)
                 return np.clip(eyes_mask, 0, 1)
-
-            def get_mouth_mask():
-                mouth_mask = LandmarksProcessor.get_image_mouth_mask (sample_bgr.shape, sample_landmarks)
-                return np.clip(mouth_mask, 0, 1)
 
             is_face_sample = sample_landmarks is not None
 
@@ -141,14 +135,9 @@ class SampleProcessor(object):
                             img = get_full_face_mask(sample)
                         elif face_mask_type == SPFMT.EYES:
                             img = get_eyes_mask()
-                        elif face_mask_type == SPFMT.MOUTH:
-                            img = get_mouth_mask()
                         elif face_mask_type == SPFMT.FULL_FACE_EYES:
                             img = get_full_face_mask(sample)                            
                             img += get_eyes_mask()*img
-                        elif face_mask_type == SPFMT.FULL_FACE_MOUTH:
-                            img = get_full_face_mask(sample)
-                            img += get_mouth_mask()*img
                         else:
                             img = np.zeros ( sample_bgr.shape[0:2]+(1,), dtype=np.float32)
 
