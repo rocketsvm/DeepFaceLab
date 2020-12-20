@@ -48,8 +48,6 @@ class SAEHDModel(ModelBase):
         feature_prio = self.load_or_def_option('feature_prio', 'n')
         feature_prio = {True: 'eyes', False: 'n'}.get(eyes_prio, feature_prio)  # backward comp
         default_feature_prio = self.options['feature_prio'] = feature_prio
-        if 'eyes_prio' in self.options:
-            del self.options['eyes_prio']
 
         default_uniform_yaw        = self.options['uniform_yaw']        = self.load_or_def_option('uniform_yaw', False)
         default_uniform_pitch      = self.options['uniform_pitch']      = self.load_or_def_option('uniform_pitch', False)
