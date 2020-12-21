@@ -43,6 +43,7 @@ class ExtractSubprocessor(Subprocessor):
         #override
         def on_initialize(self, client_dict):
             self.type                 = client_dict['type']
+            self.auto_res             = client_dict['auto_res']
             self.image_size           = client_dict['image_size']
             self.jpeg_quality         = client_dict['jpeg_quality']
             self.face_type            = client_dict['face_type']
@@ -52,6 +53,7 @@ class ExtractSubprocessor(Subprocessor):
             self.final_output_path    = client_dict['final_output_path']
             self.output_debug_path    = client_dict['output_debug_path']
 
+            # self.auto_res             = True
             #transfer and set stdin in order to work code.interact in debug subprocess
             stdin_fd         = client_dict['stdin_fd']
             if stdin_fd is not None and DEBUG:
@@ -119,6 +121,7 @@ class ExtractSubprocessor(Subprocessor):
                 data = ExtractSubprocessor.Cli.final_stage(data=data,
                                                            image=image,
                                                            face_type=self.face_type,
+                                                           auto_res=self.auto_res,
                                                            image_size=self.image_size,
                                                            jpeg_quality=self.jpeg_quality,
                                                            extract_from_dflimg=extract_from_dflimg,
@@ -205,6 +208,7 @@ class ExtractSubprocessor(Subprocessor):
         def final_stage(data,
                         image,
                         face_type,
+                        auto_res,
                         image_size,
                         jpeg_quality,
                         extract_from_dflimg = False,
@@ -246,10 +250,16 @@ class ExtractSubprocessor(Subprocessor):
                     else:
                         image_to_face_mat = LandmarksProcessor.get_transform_mat (image_landmarks, image_size, face_type)
 
+                        landmarks_bbox = LandmarksProcessor.transform_points ( [ (0,0), (0,image_size-1), (image_size-1, image_size-1), (image_size-1,0) ], image_to_face_mat, True)
+                        
+                        if auto_res:
+                            image_size = int(np.linalg.norm(landmarks_bbox[1]-landmarks_bbox[0]))
+                            image_to_face_mat = LandmarksProcessor.get_transform_mat (image_landmarks, image_size, face_type)
+                            landmarks_bbox = LandmarksProcessor.transform_points ( [ (0,0), (0,image_size-1), (image_size-1, image_size-1), (image_size-1,0) ], image_to_face_mat, True)
+                            # print('Overriding extract resolution to: {}'.format(image_size))
+                            
                         face_image = cv2.warpAffine(image, image_to_face_mat, (image_size, image_size), cv2.INTER_LANCZOS4)
                         face_image_landmarks = LandmarksProcessor.transform_points (image_landmarks, image_to_face_mat)
-
-                        landmarks_bbox = LandmarksProcessor.transform_points ( [ (0,0), (0,image_size-1), (image_size-1, image_size-1), (image_size-1,0) ], image_to_face_mat, True)
 
                         rect_area      = mathlib.polygon_area(np.array(rect[[0,2,2,0]]).astype(np.float32), np.array(rect[[1,1,3,3]]).astype(np.float32))
                         landmarks_area = mathlib.polygon_area(landmarks_bbox[:,0].astype(np.float32), landmarks_bbox[:,1].astype(np.float32) )
@@ -330,7 +340,7 @@ class ExtractSubprocessor(Subprocessor):
         elif type == 'final':
             return [ (i, 'CPU', 'CPU%d' % (i), 0 ) for i in (range(min(8, multiprocessing.cpu_count())) if not DEBUG else [0]) ]
 
-    def __init__(self, input_data, type, image_size=None, jpeg_quality=None, face_type=None, output_debug_path=None, manual_window_size=0, max_faces_from_image=0, final_output_path=None, device_config=None):
+    def __init__(self, input_data, type, auto_res=True, image_size=None, jpeg_quality=None, face_type=None, output_debug_path=None, manual_window_size=0, max_faces_from_image=0, final_output_path=None, device_config=None):
         if type == 'landmarks-manual':
             for x in input_data:
                 x.manual = True
@@ -338,6 +348,7 @@ class ExtractSubprocessor(Subprocessor):
         self.input_data = input_data
 
         self.type = type
+        self.auto_res = auto_res
         self.image_size = image_size
         self.jpeg_quality = jpeg_quality
         self.face_type = face_type
@@ -389,6 +400,7 @@ class ExtractSubprocessor(Subprocessor):
     #override
     def process_info_generator(self):
         base_dict = {'type' : self.type,
+                     'auto_res': self.auto_res,
                      'image_size': self.image_size,
                      'jpeg_quality' : self.jpeg_quality,
                      'face_type': self.face_type,
@@ -739,6 +751,7 @@ def main(detector=None,
          manual_window_size=1368,
          face_type='full_face',
          max_faces_from_image=None,
+         auto_res=True,
          image_size=None,
          jpeg_quality=None,
          cpu_only = False,
@@ -795,6 +808,11 @@ def main(detector=None,
     if max_faces_from_image is None:
         max_faces_from_image = io.input_int(f"Max number of faces from image", 0, help_message="If you extract a src faceset that has frames with a large number of faces, it is advisable to set max faces to 3 to speed up extraction. 0 - unlimited")
 
+    auto_res = io.input_bool("Automatic resolution", True, help_message="Base output image size on the bounding box of a face in a source image.")
+
+    if auto_res:
+        image_size = 512
+
     if image_size is None:
         image_size = io.input_int(f"Image size", 512 if face_type < FaceType.HEAD else 768, valid_range=[256,2048], help_message="Output image size. The higher image size, the worse face-enhancer works. Use higher than 512 value only if the source image is sharp enough and the face does not need to be enhanced.")
 
@@ -835,15 +853,16 @@ def main(detector=None,
     if images_found != 0:
         if detector == 'manual':
             io.log_info ('Performing manual extract...')
-            data = ExtractSubprocessor ([ ExtractSubprocessor.Data(Path(filename)) for filename in input_image_paths ], 'landmarks-manual', image_size, jpeg_quality, face_type, output_debug_path if output_debug else None, manual_window_size=manual_window_size, device_config=device_config).run()
+            data = ExtractSubprocessor ([ ExtractSubprocessor.Data(Path(filename)) for filename in input_image_paths ], 'landmarks-manual', auto_res, image_size, jpeg_quality, face_type, output_debug_path if output_debug else None, manual_window_size=manual_window_size, device_config=device_config).run()
 
             io.log_info ('Performing 3rd pass...')
-            data = ExtractSubprocessor (data, 'final', image_size, jpeg_quality, face_type, output_debug_path if output_debug else None, final_output_path=output_path, device_config=device_config).run()
+            data = ExtractSubprocessor (data, 'final', auto_res, image_size, jpeg_quality, face_type, output_debug_path if output_debug else None, final_output_path=output_path, device_config=device_config).run()
 
         else:
             io.log_info ('Extracting faces...')
             data = ExtractSubprocessor ([ ExtractSubprocessor.Data(Path(filename)) for filename in input_image_paths ],
                                          'all',
+                                         auto_res,
                                          image_size,
                                          jpeg_quality,
                                          face_type,
@@ -860,8 +879,8 @@ def main(detector=None,
             else:
                 fix_data = [ ExtractSubprocessor.Data(d.filepath) for d in data if d.faces_detected == 0 ]
                 io.log_info ('Performing manual fix for %d images...' % (len(fix_data)) )
-                fix_data = ExtractSubprocessor (fix_data, 'landmarks-manual', image_size, jpeg_quality, face_type, output_debug_path if output_debug else None, manual_window_size=manual_window_size, device_config=device_config).run()
-                fix_data = ExtractSubprocessor (fix_data, 'final', image_size, jpeg_quality, face_type, output_debug_path if output_debug else None, final_output_path=output_path, device_config=device_config).run()
+                fix_data = ExtractSubprocessor (fix_data, 'landmarks-manual', auto_res, image_size, jpeg_quality, face_type, output_debug_path if output_debug else None, manual_window_size=manual_window_size, device_config=device_config).run()
+                fix_data = ExtractSubprocessor (fix_data, 'final', auto_res, image_size, jpeg_quality, face_type, output_debug_path if output_debug else None, final_output_path=output_path, device_config=device_config).run()
                 faces_detected += sum([d.faces_detected for d in fix_data])
 
 
